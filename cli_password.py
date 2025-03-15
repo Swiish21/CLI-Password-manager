@@ -15,7 +15,7 @@ DB_FILE = 'database.json'
 #Generate a key from a master password
 def generate_key(master_password):
     key = hashlib.sha256(master_password.encode()).digest()
-    return base64.urlsafe_b64decode(key)
+    return base64.urlsafe_b64encode(key)
 
 #Encrypt a password
 def encrypt_password(password, key):
@@ -26,7 +26,7 @@ def encrypt_password(password, key):
 #Decrypt a password
 def decrypt_password(encrypted_password, key):
     cipher = Fernet(key)
-    return cipher.decrypt(encrypt_password.encode()).decode
+    return cipher.decrypt(encrypted_password.encode()).decode()
 
 #load password database
 def load_passwords():
@@ -46,13 +46,13 @@ def generate_password(length=16):
     return ''.join(secrets.choice(characters) for _ in range(length))
     
 #add a new password
-def add_password():
+def add_password(master_key):
     site = input('Enter the site name:')
     username = input("Enter username/email: ")
     password = input("Enter password(or press Enter to generate a strong one): ")
     
     if not password:
-        password = generate_password:
+        password = generate_password()
         print(f"Generated password:{password}")
             
     encrypted_password = encrypt_password(password, master_key)
@@ -67,7 +67,7 @@ def get_password(master_key):
     passwords = load_passwords()
     
     if site in passwords:
-        encrypted_password = passwords[site]["Password"]
+        encrypted_password = passwords[site]["password"]
         decrypted_password = decrypt_password(encrypted_password, master_key)
         print(f"Username: {passwords[site]['username']}")
         print(f"password: {decrypted_password}")
