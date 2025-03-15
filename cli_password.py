@@ -32,8 +32,14 @@ def decrypt_password(encrypted_password, key):
 def load_passwords():
     if not os.path.exists(DB_FILE):
         return {}
-    with open(DB_FILE, 'r') as file:
-        return json.load(file)
+    try:
+        with open(DB_FILE, 'r') as file:
+            content = file.read()
+            if not content:  # If file is empty
+                return {}
+            return json.loads(content)
+    except json.JSONDecodeError:
+        return {}
     
 #save password database
 def save_passwords(passwords):
@@ -76,7 +82,8 @@ def get_password(master_key):
         
 #main funtion
 def main():
-    master_password = getpass.getpass("Set your master password: ")
+    print("Welcome to Password Manager!")
+    master_password = input("Set your master password: ")  # Changed from getpass to input for testing
     master_key = generate_key(master_password)
     
     while True:
