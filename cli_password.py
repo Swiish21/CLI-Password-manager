@@ -1,4 +1,4 @@
-#Below we are importing dependencies required for the program to run, they cover various aspects that our program requires
+#Below we are importing modules required for the program to run, they cover various aspects that our program requires
 import json
 import os
 import base64
