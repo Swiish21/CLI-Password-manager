@@ -7,6 +7,9 @@ import hashlib
 from cryptography.fernet import Fernet
 import secrets
 import string
+import re  # Add this to imports at the top
+from datetime import datetime
+import shutil
 
 
 #file to store passwords(encrypted)
@@ -51,21 +54,90 @@ def generate_password(length=16):
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(secrets.choice(characters) for _ in range(length))
     
+def check_password_strength(password):
+    """Check the strength of a password and return feedback."""
+    score = 0
+    feedback = []
+    
+    # Length check
+    if len(password) < 8:
+        feedback.append("Password is too short (minimum 8 characters)")
+    elif len(password) >= 12:
+        score += 2
+    else:
+        score += 1
+    
+    # Complexity checks
+    if re.search(r"\d", password):
+        score += 1
+    else:
+        feedback.append("Add numbers")
+    if re.search(r"[A-Z]", password):
+        score += 1
+    else:
+        feedback.append("Add uppercase letters")
+    if re.search(r"[a-z]", password):
+        score += 1
+    else:
+        feedback.append("Add lowercase letters")
+    if re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        score += 1
+    else:
+        feedback.append("Add special characters")
+    
+    # Return strength assessment
+    if score < 2:
+        return "Weak", feedback
+    elif score < 3:
+        return "Moderate", feedback
+    elif score < 4:
+        return "Strong", feedback
+    else:
+        return "Very Strong", feedback
+
+def list_all_sites():
+    """List all stored sites and their usernames."""
+    passwords = load_passwords()
+    if not passwords:
+        print("No passwords stored yet.")
+        return
+    
+    print("\nStored Sites:")
+    print("-" * 40)
+    print(f"{'Site':<20} {'Username':<20}")
+    print("-" * 40)
+    for site, data in sorted(passwords.items()):
+        print(f"{site:<20} {data['username']:<20}")
+    print("-" * 40)
+
 #add a new password
 def add_password(master_key):
-    site = input('Enter the site name:')
+    site = input('Enter the site name: ')
     username = input("Enter username/email: ")
-    password = input("Enter password(or press Enter to generate a strong one): ")
+    password = input("Enter password (or press Enter to generate a strong one): ")
     
     if not password:
         password = generate_password()
-        print(f"Generated password:{password}")
-            
+        print(f"\nGenerated password: {password}")
+    
+    # Check password strength
+    strength, feedback = check_password_strength(password)
+    print(f"\nPassword Strength: {strength}")
+    if feedback:
+        print("Suggestions to improve:")
+        for suggestion in feedback:
+            print(f"- {suggestion}")
+        
+        if strength in ["Weak", "Moderate"]:
+            confirm = input("\nDo you want to continue with this password anyway? (y/n): ")
+            if confirm.lower() != 'y':
+                return
+    
     encrypted_password = encrypt_password(password, master_key)
     passwords = load_passwords()
     passwords[site] = {"username": username, "password": encrypted_password}
     save_passwords(passwords)
-    print("Password saved successfully!")
+    print("\nPassword saved successfully!")
     
 #Retrieve a password
 def get_password(master_key):
@@ -80,17 +152,142 @@ def get_password(master_key):
     else:
         print("No password found for this site")
         
+def delete_password(master_key):
+    """Delete a stored password."""
+    site = input("Enter site name to delete: ")
+    passwords = load_passwords()
+    
+    if site in passwords:
+        confirm = input(f"Are you sure you want to delete password for {site}? (y/n): ")
+        if confirm.lower() == 'y':
+            del passwords[site]
+            save_passwords(passwords)
+            print(f"\nPassword for {site} deleted successfully!")
+        else:
+            print("\nDeletion cancelled.")
+    else:
+        print("\nNo password found for this site.")
+
+def update_password(master_key):
+    """Update an existing password."""
+    site = input("Enter site name to update: ")
+    passwords = load_passwords()
+    
+    if site in passwords:
+        print(f"\nCurrent username: {passwords[site]['username']}")
+        update_username = input("Enter new username/email (or press Enter to keep current): ")
+        if update_username:
+            passwords[site]['username'] = update_username
+        
+        update_choice = input("\nDo you want to:\n1. Enter a new password\n2. Generate a new password\n3. Keep current password\nChoice: ")
+        
+        if update_choice == '1':
+            new_password = input("Enter new password: ")
+            strength, feedback = check_password_strength(new_password)
+            print(f"\nPassword Strength: {strength}")
+            if feedback:
+                print("Suggestions to improve:")
+                for suggestion in feedback:
+                    print(f"- {suggestion}")
+                if strength in ["Weak", "Moderate"]:
+                    confirm = input("\nDo you want to continue with this password anyway? (y/n): ")
+                    if confirm.lower() != 'y':
+                        return
+            passwords[site]['password'] = encrypt_password(new_password, master_key)
+            
+        elif update_choice == '2':
+            new_password = generate_password()
+            print(f"\nGenerated password: {new_password}")
+            passwords[site]['password'] = encrypt_password(new_password, master_key)
+        
+        save_passwords(passwords)
+        print("\nPassword updated successfully!")
+    else:
+        print("\nNo password found for this site.")
+
+def backup_database():
+    """Create a backup of the password database."""
+    if not os.path.exists(DB_FILE):
+        print("\nNo database file exists yet.")
+        return
+        
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = f"database_backup_{timestamp}.json"
+    
+    try:
+        shutil.copy2(DB_FILE, backup_file)
+        print(f"\nBackup created successfully: {backup_file}")
+    except Exception as e:
+        print(f"\nError creating backup: {str(e)}")
+
+def restore_database():
+    """Restore the password database from a backup."""
+    # List all backup files
+    backup_files = [f for f in os.listdir('.') if f.startswith('database_backup_') and f.endswith('.json')]
+    
+    if not backup_files:
+        print("\nNo backup files found.")
+        return
+        
+    print("\nAvailable backups:")
+    for i, file in enumerate(sorted(backup_files, reverse=True), 1):
+        print(f"{i}. {file}")
+    
+    try:
+        choice = int(input("\nEnter the number of the backup to restore (0 to cancel): "))
+        if choice == 0:
+            return
+        if 1 <= choice <= len(backup_files):
+            backup_file = sorted(backup_files, reverse=True)[choice-1]
+            
+            # Create a backup of current database if it exists
+            if os.path.exists(DB_FILE):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                current_backup = f"database_current_{timestamp}.json"
+                shutil.copy2(DB_FILE, current_backup)
+                print(f"\nCurrent database backed up as: {current_backup}")
+            
+            # Restore the selected backup
+            shutil.copy2(backup_file, DB_FILE)
+            print(f"\nDatabase restored from: {backup_file}")
+        else:
+            print("\nInvalid choice.")
+    except ValueError:
+        print("\nInvalid input. Please enter a number.")
+    except Exception as e:
+        print(f"\nError restoring backup: {str(e)}")
+
 #main funtion
 def main():
     print("Welcome to Password Manager!")
-    master_password = input("Set your master password: ")  # Changed from getpass to input for testing
+    print("=" * 50)
+    master_password = input("Set your master password: ")
+    
+    # Check master password strength
+    strength, feedback = check_password_strength(master_password)
+    if strength in ["Weak", "Moderate"]:
+        print(f"\nWarning: Your master password is {strength}")
+        print("Suggestions to improve:")
+        for suggestion in feedback:
+            print(f"- {suggestion}")
+        confirm = input("\nDo you want to continue with this master password? (y/n): ")
+        if confirm.lower() != 'y':
+            return
+    
     master_key = generate_key(master_password)
     
     while True:
         print("\nPassword Manager CLI")
+        print("=" * 50)
         print("1. Add new password")
         print("2. Retrieve Password")
-        print("3. Exit")
+        print("3. List all sites")
+        print("4. Update password")
+        print("5. Delete password")
+        print("6. Backup database")
+        print("7. Restore database")
+        print("8. Exit")
+        print("=" * 50)
         
         choice = input("Choose an option: ")
         if choice == "1":
@@ -98,6 +295,16 @@ def main():
         elif choice == "2":
             get_password(master_key)
         elif choice == "3":
+            list_all_sites()
+        elif choice == "4":
+            update_password(master_key)
+        elif choice == "5":
+            delete_password(master_key)
+        elif choice == "6":
+            backup_database()
+        elif choice == "7":
+            restore_database()
+        elif choice == "8":
             print("Exiting.....")
             break
         else:
