@@ -26,12 +26,12 @@ def encrypt_password(password, key):
     return cipher.encrypt(password.encode()).decode()
 
 
-#Decrypt a password
+#Decrypt a password for storage
 def decrypt_password(encrypted_password, key):
     cipher = Fernet(key)
     return cipher.decrypt(encrypted_password.encode()).decode()
 
-#load password database
+#load password database to display
 def load_passwords():
     if not os.path.exists(DB_FILE):
         return {}
@@ -44,12 +44,12 @@ def load_passwords():
     except json.JSONDecodeError:
         return {}
     
-#save password database
+#save password to database
 def save_passwords(passwords):
     with open(DB_FILE, 'w') as file:
         json.dump(passwords, file, indent=4)
 
-#generate a strong password
+#generate a strong password with uppercase, lowercase & special char
 def generate_password(length=16):
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(secrets.choice(characters) for _ in range(length))
